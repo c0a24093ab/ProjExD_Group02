@@ -1,7 +1,8 @@
 import pygame
 import random
 import sys
-
+import os
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
 # --- 1. 設定とクラス定義 ---
 
 # 色の定義

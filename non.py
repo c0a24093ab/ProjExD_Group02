@@ -44,10 +44,11 @@ class Unit:
         # ログ用のメッセージを作成して返す
         return f"{self.name}の攻撃！ {target.name}に {damage} のダメージ！"
     
-    def check_level(self, amount):
+    def check_level(self, amount: int) -> list:
         """
         レベルが上がるかどうか判定する
-        :param amount: 入手した経験値
+        レベルアップ時ステータスを強化する
+        amount: 入手した経験値
         """
         self.xp += amount
         messages = [f"{self.name}は経験値{amount}を獲得した！"]
@@ -67,7 +68,17 @@ class Unit:
         return messages 
 
 
-def draw_xp_bar(surface, unit, x, y, bar_width=200, bar_height=10):
+def draw_xp_bar(surface: pygame.Surface, unit: Unit, x: int, y: int, bar_width: int = 200, bar_height: int = 10) -> None:
+    """
+    指定されたUnitの経験値バーを画面に描画する
+
+    引数1 surface: 描画先のPygame Surface
+    引数2 unit: xpをもつUnitオブジェクト。
+    引数3 x: バーの左上X座標
+    引数4 y: バーの左上Y座標
+    引数5 bar_width: バーの全体の幅
+    引数6 bar_height: バーの高さ
+    """
     if unit.nextlevel == 0 or unit.level >= 99:
         ratio = 1.0
     else:
@@ -83,22 +94,22 @@ def draw_xp_bar(surface, unit, x, y, bar_width=200, bar_height=10):
     pygame.draw.rect(surface, xp_color, xp_rect)
 
 
-def draw_health_bar(surface, unit, x, y, bar_width=200, bar_height=20):
+def draw_health_bar(surface: pygame.Surface, unit: Unit, x: int, y: int, bar_width: int = 200, bar_height: int = 20) -> None:
     """
     指定されたUnitのHPバーを描画する関数
     
-    surface: 描画先のPygame Surface (screen)
-    unit: HPを持つUnitオブジェクト
-    x: バーの左上X座標
-    y: バーの左上Y座標
-    bar_width: バーの全体の幅
-    bar_height: バーの高さ
+    引数1 surface: 描画先のPygame Surface
+    引数2 unit: HPを持つUnitオブジェクト
+    引数3 x: バーの左上X座標
+    引数4 y: バーの左上Y座標
+    引数5 bar_width: バーの全体の幅
+    引数6 bar_height: バーの高さ
     """
     
     # HPの割合を計算
     ratio = unit.hp / unit.max_hp
     
-    # 描画色を決定（勇者は緑、魔王は赤など）
+    # 描画色を決定（勇者は緑、魔王は赤）
     if unit.name == "勇者":
         bar_color = (0, 255, 0) 
     else:

@@ -29,6 +29,7 @@ def play_bgm(file):
         pygame.mixer.music.play(-1)
     except:
         print(f"BGM {file} が見つかりません")
+BLUE_GUIDE = (100, 100, 255) # 逃走ガイド用
 
 class Unit:
     def __init__(self, name, hp, attack, defense):
@@ -40,6 +41,7 @@ class Unit:
         self.xp = 0
         self.level = 1
         self.nextlevel = self.level * 100
+        self.is_defending = False 
 
     def is_alive(self):
         return self.hp > 0
@@ -52,6 +54,18 @@ class Unit:
         
         if snd_attack:
             snd_attack.play()
+
+        if target.is_defending:
+            damage = max(1, damage // 2) 
+            
+        if damage < 1:
+            damage = 1
+
+        target.hp -= damage
+        if target.hp < 0:
+            target.hp = 0
+
+        target.is_defending = False
         return f"{self.name}の攻撃！ {target.name}に {damage} のダメージ！"
     
     def check_level(self, amount: int) -> list:
@@ -75,6 +89,16 @@ class Unit:
             self.nextlevel = self.level*100
             messages.append(f"{self.name}はレベル{self.level}に上がった！")
         return messages
+    
+    def heal(self):
+        heal_amount = random.randint(self.max_hp // 10, self.max_hp // 5) 
+        self.hp = min(self.max_hp, self.hp + heal_amount)
+        self.is_defending = False
+        return f"{self.name}は休憩した。HPが {heal_amount} 回復！"
+    
+    def defend(self):
+        self.is_defending = True 
+        return f"{self.name}は身構えた！次のダメージを軽減する！"
 
 
 class BattleSprite:
@@ -210,6 +234,26 @@ def draw_health_bar(surface: pygame.Surface, unit: Unit, x: int, y: int, bar_wid
     pygame.draw.rect(surface, bar_color, hp_rect)
 
 # --- 2. 画面とフォントの設定 ---
+    def heal(self):
+        """ランダムな量だけHPを回復し、メッセージを返す"""
+        heal_amount = random.randint(self.max_hp // 10, self.max_hp // 5) 
+        
+        self.hp += heal_amount
+        if self.hp > self.max_hp:
+            heal_amount -= (self.hp - self.max_hp) 
+            self.hp = self.max_hp
+            
+        self.is_defending = False
+        
+        return f"{self.name}は休憩した。HPが {heal_amount} 回復！"
+    
+    def defend(self):
+        """防御状態に移行し、メッセージを返す"""
+        self.is_defending = True 
+        return f"{self.name}は身構えた！次のダメージを軽減する！"
+
+# --- 2. Pygame初期化 ---
+pygame.init()
 screen = pygame.display.set_mode((640, 480))
 pygame.display.set_caption("テキストバトル RPG 統合版")
 
@@ -241,6 +285,10 @@ slash2_effect = AttackEffect("images/slash2.png", 130, 180)  # 敵の攻撃エ�
 battle_logs = []
 mode = 'SELECT' # 'SELECT', 'BATTLE', 'CLEAR'
 turn = "PLAYER"
+
+# 戦闘ログ（画面に表示するテキストのリスト）
+battle_logs = ["A: 攻撃, H: 回復, D: 防御, R: 逃げる を選択！"]
+
 game_over = False
 current_stage = 1
 MAX_STAGE = 5
@@ -275,7 +323,6 @@ battle_logs = ["1-5キーでステージを選択してください。"]
 # --- 4. メインループ ---
 running = True
 clock = pygame.time.Clock()
-
 while running:
     screen.fill(BLACK)
     
@@ -295,7 +342,9 @@ while running:
             # --- バトルモード ---
             elif mode == 'BATTLE':
                 if not game_over:
-                    if event.key == pygame.K_SPACE:
+                
+                # Aキーで攻撃 (Attack)
+                    if event.key == pygame.K_a:
                         hero_sprite.show()  # 勇者の呼び出し
                         demon_sprite.show()  # 敵の呼び出し
                         if turn == "PLAYER":
@@ -303,51 +352,91 @@ while running:
                             demon_sprite.hit()  # 敵が揺れる
                             slash_effect.play()  # 勇者の攻撃エフェクト
                             battle_logs.append(msg)
-                            if not demon.is_alive():
-                                battle_logs.append(f"{demon.name}を倒した！")
-                                xp_messages = hero.check_level(200)
-                                battle_logs.extend(xp_messages)
+                        # msg = hero.attack(demon)
+                        # battle_logs.append(msg)
                         
-                                if current_stage == 5:
+                        if not demon.is_alive():
+                            battle_logs.append("魔王を倒した！")
+                            xp_messages = hero.check_level(200)
+                            battle_logs.extend(xp_messages)
+                            if current_stage == 5:
                                     mode = 'CLEAR'
                                     play_bgm("./ccs.wav")
-                                else:
-                                    game_over = True # Rで戻るか次への待機
                             else:
-                                turn = "ENEMY"
-                        elif turn =="ENEMY":
+                                game_over = True # Rで戻るか次への待機
+                        else:
+                            turn = "ENEMY"
+                            
+                    # Hキーで回復 (Heal)
+                    elif event.key == pygame.K_h:
+                        msg = hero.heal()
+                        battle_logs.append(msg)
+                        turn = "ENEMY"
+
+                    # Dキーで防御 (Defend)
+                    elif event.key == pygame.K_d:
+                        msg = hero.defend()
+                        battle_logs.append(msg)
+                        turn = "ENEMY"
+                    
+                    # --- Rキーで逃走 (Run) ---
+                    elif event.key == pygame.K_r:
+                        # 逃走判定 (10% 成功)
+                        if random.random() < 0.1: 
+                            battle_logs.append("勇者は戦場から逃げ出した！")
+                            game_over = True # 成功したらゲーム終了
+                        else:
+                            battle_logs.append("逃走に失敗した！")
+                            turn = "ENEMY" # 失敗したら魔王のターンへ
+                            
+                if turn == "ENEMY" and not game_over:
+                    
+                    action_performed = False
+                    while not action_performed:
+                        
+                        roll = random.randint(0, 99)
+                        
+                        # 魔王の行動ロジック（攻撃、回復、防御）
+                        if demon.hp < demon.max_hp / 2 and roll < 20: # 回復
+                            msg = demon.heal()
+                            action_performed = True
+                        elif roll >= 20 and roll < 30: # 防御
+                            msg = demon.defend()
+                            action_performed = True
+                        else: # 攻撃
                             msg = demon.attack(hero)
-                            hero_sprite.hit()  # 勇者が揺れる
-                            slash2_effect.play()  # 敵の攻撃エフェクト
-                            battle_logs.append(msg)
-                            if not hero.is_alive():
-                                battle_logs.append("勇者は力尽きた...")
-                                mode ="gameover"
-                            else:
-                                turn = "PLAYER"
-                        
-                        
-                # ゲームオーバー/勝利後の操作
-                if game_over and event.key == pygame.K_r:
-                    mode = 'SELECT'
-                    play_bgm("./future.mp3")
-                    battle_logs.append("ステージ選択に戻りました。")
-                    # キャラ表示を消す
-                    try:
-                        hero_sprite.hide()
-                        demon_sprite.hide()
-                        # エフェクトも停止して非表示にする
-                        slash_effect.visible = False
-                        slash_effect.timer = 0
-                        slash2_effect.visible = False
-                        slash2_effect.timer = 0
-                    except Exception:
-                        pass
+                            action_performed = True
+                    
+                    battle_logs.append(msg)
+
+                    # 敵の攻撃後の勇者の生存判定
+                    if not hero.is_alive():
+                        battle_logs.append("勇者は力尽きた...")
+                        game_over = True
+                    else:
+                        turn = "PLAYER" 
+
+            # ゲームオーバー/勝利後の操作
+            if game_over and event.key == pygame.K_r:
+                mode = 'SELECT'
+                play_bgm("./future.mp3")
+                battle_logs.append("ステージ選択に戻りました。")
+                # キャラ表示を消す
+                try:
+                    hero_sprite.hide()
+                    demon_sprite.hide()
+                    # エフェクトも停止して非表示にする
+                    slash_effect.visible = False
+                    slash_effect.timer = 0
+                    slash2_effect.visible = False
+                    slash2_effect.timer = 0
+                except Exception:
+                    pass
 
             # --- クリアモード ---
-                elif mode == 'CLEAR':
-                    if event.key in [pygame.K_q, pygame.K_ESCAPE]:
-                        running = False
+            elif mode == 'CLEAR':
+                if event.key in [pygame.K_q, pygame.K_ESCAPE]:
+                    running = False
 
     if mode == 'gameover':
         gameover_text = font.render("GAME OVER", True, RED)
@@ -413,8 +502,7 @@ while running:
         screen.blit(txt, (txt.get_rect(center=(320, 200))))
         screen.blit(sub, (sub.get_rect(center=(320, 280))))
 
-    # 2. ログの表示（最新の5行だけ表示する）
-    # リストの後ろから5つを取得して表示
+    # 2. ログの表示
     recent_logs = battle_logs[-5:] 
 
     # 3. キャラの表示
@@ -426,15 +514,17 @@ while running:
     slash_effect.draw(screen)
     slash2_effect.update()
     slash2_effect.draw(screen)
-    
-    # y = 150 # テキストを表示し始めるY座標
-    # for log in recent_logs:
-    #     text_surface = font.render(log, True, WHITE)
-    #     # screen.blit(text_surface, (50, y))
-    #     y += 40 # 行間をあける
 
-
-    
+    # 3. 操作ガイド
+    if not game_over and turn == "PLAYER":
+        guide_text = font.render("[A]: 攻撃 | [H]: 回復 | [D]: 防御 | [R]: 逃げる", True, BLUE_GUIDE)
+        screen.blit(guide_text, (50, 400))
+    elif not game_over and turn == "ENEMY":
+        guide_text = font.render("... 魔王の行動中 ...", True, RED)
+        screen.blit(guide_text, (200, 400))
+    # elif game_over:
+    #     guide_text = font.render("ゲーム終了。閉じるボタンで終了してください。", True, WHITE)
+    #     screen.blit(guide_text, (100, 400))
 
     pygame.display.flip()
     clock.tick(30)
